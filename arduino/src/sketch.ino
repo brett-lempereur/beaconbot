@@ -67,7 +67,7 @@ void setup()
     mqtt_wifi.stop();
 
     // Initialise the lighting strip.
-    FastLED.addLeds<WS2812, BASE_PIN, RGB>(base_leds, BASE_COUNT);
+    FastLED.addLeds<WS2812, BASE_PIN, GRB>(base_leds, BASE_COUNT);
     fill_solid(base_leds, BASE_COUNT, CRGB(255, 255, 255));
     FastLED.show();
 
