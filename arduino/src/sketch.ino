@@ -14,6 +14,11 @@
 const uint8_t BASE_COUNT = 20;
 const uint8_t BASE_PIN = 3;
 
+// Brand light configuration.
+const uint8_t BRAND_COUNT = 13;
+const uint8_t BRAND_PIN_LEFT = 5;
+const uint8_t BRAND_PIN_RIGHT = 6;
+
 // Wireless network configuration.
 char* WIFI_SSID = "DoESLiverpool";
 char* WIFI_KEY = "decafbad00";
@@ -25,8 +30,13 @@ char* MQTT_USER = "";
 char* MQTT_PASSWORD = "";
 char* MQTT_TOPIC = "beacon/colour";
 
-// Lighting status.
+// Base lighting status.
 CRGB base_leds[BASE_COUNT];
+
+// Brand lighting status.
+uint8_t brand_percent;
+CRGB brand_leds_p[BRAND_COUNT];
+CRGB brand_leds[BRAND_COUNT];
 
 // Messaging status.
 WiFiClient mqtt_wifi;
@@ -68,7 +78,11 @@ void setup()
 
     // Initialise the lighting strip.
     FastLED.addLeds<WS2812, BASE_PIN, GRB>(base_leds, BASE_COUNT);
+    FastLED.addLeds<WS2812, BRAND_PIN_A, GRB>(brand_leds, BRAND_COUNT);
+    FastLED.addLeds<WS2812, BRAND_PIN_B, GRB>(brand_leds, BRAND_COUNT);
     fill_solid(base_leds, BASE_COUNT, CRGB(255, 255, 255));
+    fill_solid(brand_leds, BRAND_COUNT, CRGB(255, 255, 255));
+    fill_solid(brand_leds_p, BRAND_COUNT, CRGB(255, 255, 255));
     FastLED.show();
 
     // Connect to the messaging server and subscribe.
