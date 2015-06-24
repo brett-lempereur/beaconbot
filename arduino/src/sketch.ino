@@ -264,14 +264,15 @@ void anim_blink()
  */
 void anim_fade()
 {
-    static CHSV target;
+    static CRGB target;
 
     // If this is the beginning of a fade, pick a random colour.
     if (brand_percent == 0) {
-        
-        target.r = random8();
-        target.g = random8();
-        target.b = random8();
+        CHSV rnd;
+        rnd.h = random8();
+        rnd.s = 255;
+        rnd.v = 255;
+        target = rnd;
     }
 
     // Interpolate the current colour.
