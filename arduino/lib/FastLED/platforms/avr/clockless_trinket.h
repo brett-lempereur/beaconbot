@@ -3,8 +3,9 @@
 
 #include "controller.h"
 #include "lib8tion.h"
-#include "delay.h"
 #include <avr/interrupt.h> // for cli/se definitions
+
+FASTLED_NAMESPACE_BEGIN
 
 #if defined(FASTLED_AVR)
 
@@ -15,10 +16,12 @@
 #define DITHER 1
 #endif
 
+#define US_PER_TICK (64 / (F_CPU/1000000))
+
 // Variations on the functions in delay.h - w/a loop var passed in to preserve registers across calls by the optimizer/compiler
 template<int CYCLES> inline void _dc(register uint8_t & loopvar);
 
-template<int _LOOP, int PAD> inline void _dc_AVR(register uint8_t & loopvar) {
+template<int _LOOP, int PAD> __attribute__((always_inline)) inline void _dc_AVR(register uint8_t & loopvar) {
 	_dc<PAD>(loopvar);
 	// The convolution in here is to ensure that the state of the carry flag coming into the delay loop is preserved
 	asm __volatile__ (  "BRCS L_PC%=\n\t"
@@ -50,9 +53,9 @@ template<> __attribute__((always_inline)) inline void _dc<8>(register uint8_t & 
 template<> __attribute__((always_inline)) inline void _dc<9>(register uint8_t & loopvar) { _dc<5>(loopvar); _dc<4>(loopvar); }
 template<> __attribute__((always_inline)) inline void _dc<10>(register uint8_t & loopvar) { _dc<6>(loopvar); _dc<4>(loopvar); }
 
-#define D1(ADJ) _dc<T1-(AVR_PIN_CYCLES(DATA_PIN)+ADJ)>(loopvar);
-#define D2(ADJ) _dc<T2-(AVR_PIN_CYCLES(DATA_PIN)+ADJ)>(loopvar);
-#define D3(ADJ) _dc<T3-(AVR_PIN_CYCLES(DATA_PIN)+ADJ)>(loopvar);
+#define D1(ADJ) _dc<T1-(2+ADJ)>(loopvar); if(AVR_PIN_CYCLES(DATA_PIN)==1) _dc<1>(loopvar);
+#define D2(ADJ) _dc<T2-(2+ADJ)>(loopvar); if(AVR_PIN_CYCLES(DATA_PIN)==1) _dc<1>(loopvar);
+#define D3(ADJ) (T3-(2+ADJ)>0) ? _dc<T3-(2+ADJ)>(loopvar) : _dc<0>(loopvar); if(AVR_PIN_CYCLES(DATA_PIN)==1) _dc<1>(loopvar);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -62,7 +65,13 @@ template<> __attribute__((always_inline)) inline void _dc<10>(register uint8_t &
 //
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template <uint8_t DATA_PIN, int T1, int T2, int T3, EOrder RGB_ORDER = RGB, int XTRA0 = 0, bool FLIP = false, int WAIT_TIME = 50>
+#if (!defined(NO_CORRECTION) || (NO_CORRECTION == 0)) && (FASTLED_ALLOW_INTERRUPTS == 0)
+static uint8_t gTimeErrorAccum256ths;
+#endif
+
+#define FASTLED_HAS_CLOCKLESS 1
+
+template <uint8_t DATA_PIN, int T1, int T2, int T3, EOrder RGB_ORDER = RGB, int XTRA0 = 0, bool FLIP = false, int WAIT_TIME = 10>
 class ClocklessController : public CLEDController {
 	typedef typename FastPin<DATA_PIN>::port_ptr_t data_ptr_t;
 	typedef typename FastPin<DATA_PIN>::port_t data_t;
@@ -104,14 +113,54 @@ protected:
 		showRGBInternal(pixels);
 
 		// Adjust the timer
-#if !defined(NO_CORRECTION) || (NO_CORRECTION == 0)
-		uint32_t microsTaken = (uint32_t)nLeds * (uint32_t)CLKS_TO_MICROS(24 * (T1 + T2 + T3));
-                if(microsTaken > 1024) {
-		  MS_COUNTER += (microsTaken >> 10);
- 		} else {
-		  MS_COUNTER++;
-		}
+#if (!defined(NO_CORRECTION) || (NO_CORRECTION == 0)) && (FASTLED_ALLOW_INTERRUPTS == 0)
+        uint32_t microsTaken = (uint32_t)nLeds * (uint32_t)CLKS_TO_MICROS(24 * (T1 + T2 + T3));
+
+        // adust for approximate observed actal runtime (as of January 2015)
+        // roughly 9.6 cycles per pixel, which is 0.6us/pixel at 16MHz
+        // microsTaken += nLeds * 0.6 * CLKS_TO_MICROS(16);
+        microsTaken += scale16by8(nLeds,(0.6 * 256) + 1) * CLKS_TO_MICROS(16);
+
+        // if less than 1000us, there is NO timer impact,
+        // this is because the ONE interrupt that might come in while interrupts
+        // are disabled is queued up, and it will be serviced as soon as
+        // interrupts are re-enabled.
+        // This actually should technically also account for the runtime of the
+        // interrupt handler itself, but we're just not going to worry about that.
+        if( microsTaken > 1000) {
+
+            // Since up to one timer tick will be queued, we don't need
+            // to adjust the MS_COUNTER for that one.
+            microsTaken -= 1000;
+
+            // Now convert microseconds to 256ths of a second, approximately like this:
+            // 250ths = (us/4)
+            // 256ths = 250ths * (263/256);
+            uint16_t x256ths = microsTaken >> 2;
+            x256ths += scale16by8(x256ths,7);
+
+            x256ths += gTimeErrorAccum256ths;
+            MS_COUNTER += (x256ths >> 8);
+            gTimeErrorAccum256ths = x256ths & 0xFF;
+        }
+
+#if 0
+        // For pixel counts of 30 and under at 16Mhz, no correction is necessary.
+        // For pixel counts of 15 and under at 8Mhz, no correction is necessary.
+        //
+        // This code, below, is smaller, and quicker clock correction, which drifts much
+        // more significantly, but is a few bytes smaller.  Presented here for consideration
+        // as an alternate on the ATtiny, which can't have more than about 150 pixels MAX
+        // anyway, meaning that microsTaken will never be more than about 4,500, which fits in
+        // a 16-bit variable.  The difference between /1000 and /1024 only starts showing
+        // up in the range of about 100 pixels, so many ATtiny projects won't even
+        // see a clock difference due to the approximation there.
+		uint16_t microsTaken = (uint32_t)nLeds * (uint32_t)CLKS_TO_MICROS((24) * (T1 + T2 + T3));
+        MS_COUNTER += (microsTaken >> 10);
 #endif
+
+#endif
+
 		sei();
 		mWait.mark();
 	}
@@ -210,12 +259,15 @@ protected:
 // 2 cycles - jump out of the loop
 #define BRLOOP1 asm __volatile__("breq 2f" ASM_VARS );
 
+// NOP using the variables, forcing a move
+#define DNOP asm __volatile__("mov r0,r0" ASM_VARS);
+
 #define DADVANCE 3
 #define DUSE (0xFF - (DADVANCE-1))
 
 	// This method is made static to force making register Y available to use for data on AVR - if the method is non-static, then
 	// gcc will use register Y for the this pointer.
-	static void __attribute__ ((always_inline))  showRGBInternal(PixelController<RGB_ORDER> & pixels) {
+	static void /*__attribute__((optimize("O0")))*/  /*__attribute__ ((always_inline))*/  showRGBInternal(PixelController<RGB_ORDER> & pixels)  {
 		uint8_t *data = (uint8_t*)pixels.mData;
 		data_ptr_t port = FastPin<DATA_PIN>::port();
 		data_t mask = FastPin<DATA_PIN>::mask();
@@ -251,8 +303,13 @@ protected:
 
 		uint8_t loopvar=0;
 
+		#if (FASTLED_ALLOW_INTERRUPTS == 1)
+		TCCR0A |= 0x30;
+		OCR0B = (uint8_t)(TCNT0 + ((WAIT_TIME-INTERRUPT_THRESHOLD)/US_PER_TICK));
+		TIFR0 = 0x04;
+		#endif
 		{
-			while(count--)
+			while(count)
 			{
 				// Loop beginning, does some stuff that's outside of the pixel write cycle, namely incrementing d0-2 and masking off
 				// by the E values (see the definition )
@@ -260,9 +317,18 @@ protected:
 				ADJDITHER2(d0,e0);
 				ADJDITHER2(d1,e1);
 				ADJDITHER2(d2,e2);
-
+				count--;
+				NOP;
+				#if (FASTLED_ALLOW_INTERRUPTS == 1)
+				cli();
+				if(TIFR0 & 0x04) {
+					sei();
+					TCCR0A &= ~0x30;
+					return;
+				}
 				hi = *port | mask;
 				lo = *port & ~mask;
+				#endif
 
 				// Sum of the clock counts across each row should be 10 for 8Mhz, WS2811
 				// The values in the D1/D2/D3 indicate how many cycles the previous column takes
@@ -274,6 +340,7 @@ protected:
 				// we're cycling back around and doing the above for byte 0.
 #if TRINKET_SCALE
 				// Inline scaling - RGB ordering
+				DNOP
 				HI1 D1(1) QLO2(b0, 7) LDSCL4(b1,O1) 	D2(4)	LO1	PRESCALEA2(d1)	D3(2)
 				HI1	D1(1) QLO2(b0, 6) PRESCALEB3(d1)	D2(3)	LO1	SCALE12(b1,0)	D3(2)
 				HI1 D1(1) QLO2(b0, 5) RORSC14(b1,1) 	D2(4)	LO1 ROR1(b1) CLC1	D3(2)
@@ -310,13 +377,14 @@ protected:
 				HI1 D1(1) QLO2(b2, 2) SCROR04(b0,5) 	D2(4)	LO1 SCALE02(b0,6)	D3(2)
 				HI1 D1(1) QLO2(b2, 1) RORSC04(b0,7) 	D2(4)	LO1 ROR1(b0) CLC1	D3(2)
 				// HI1 D1(1) QLO2(b2, 0) DCOUNT2 BRLOOP1 	D2(3) 	LO1 D3(2) JMPLOOP2
-				HI1 D1(1) QLO2(b2, 0) 					D2(0) 	LO1 				D3(0)
+				HI1 D1(1) QLO2(b2, 0) 					D2(0) 	LO1
 				switch(XTRA0) {
-					case 4: HI1 D1(1) QLO2(b1,0) D2(0) LO1 D3(0);
-					case 3: HI1 D1(1) QLO2(b1,0) D2(0) LO1 D3(0);
-					case 2: HI1 D1(1) QLO2(b1,0) D2(0) LO1 D3(0);
-					case 1: HI1 D1(1) QLO2(b1,0) D2(0) LO1 D3(0);
+					case 4: D3(0) HI1 D1(1) QLO2(b1,0) D2(0) LO1;
+					case 3: D3(0) HI1 D1(1) QLO2(b1,0) D2(0) LO1;
+					case 2: D3(0) HI1 D1(1) QLO2(b1,0) D2(0) LO1;
+					case 1: D3(0) HI1 D1(1) QLO2(b1,0) D2(0) LO1;
 				}
+				D3(13);
 #else
 				// no inline scaling - non-straight RGB ordering
 				HI1	D1(1) QLO2(b0, 7) LD2(b1,O1)	D2(2)	LO1 D3(0)
@@ -344,14 +412,20 @@ protected:
 				HI1 D1(1) QLO2(b2, 1) 				D2(0) 	LO1 D3(0)
 				HI1 D1(1) QLO2(b2, 0) 				D2(0) 	LO1 D3(0)
 #endif
-				// DONE
-				// D2(4) LO1 D3(0)
+
+				#if (FASTLED_ALLOW_INTERRUPTS == 1)
+				// set the counter mark
+				OCR0B = (uint8_t)(TCNT0 + ((WAIT_TIME-INTERRUPT_THRESHOLD)/US_PER_TICK));
+				TIFR0 = 0x04;
+				sei();
+				#endif
 			}
 		}
-		// save the d values
-		// d[0] = d0;
-		// d[1] = d1;
-		// d[2] = d2;
+
+		#if (FASTLED_ALLOW_INTERRUPTS == 1)
+		// stop using the clock juggler
+		TCCR0A &= ~0x30;
+		#endif
 	}
 
 #ifdef SUPPORT_ARGB
@@ -362,5 +436,7 @@ protected:
 };
 
 #endif
+
+FASTLED_NAMESPACE_END
 
 #endif

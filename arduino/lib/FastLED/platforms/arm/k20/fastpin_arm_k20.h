@@ -1,11 +1,21 @@
 #ifndef __FASTPIN_ARM_K20_H
 #define __FASTPIN_ARM_K20_H
 
+FASTLED_NAMESPACE_BEGIN
+
+#if defined(FASTLED_FORCE_SOFTWARE_PINS)
+#warning "Software pin support forced, pin access will be sloightly slower."
+#define NO_HARDWARE_PIN_SUPPORT
+#undef HAS_HARDWARE_PIN_SUPPORT
+
+#else
+
+
 /// Template definition for teensy 3.0 style ARM pins, providing direct access to the various GPIO registers.  Note that this
 /// uses the full port GPIO registers.  In theory, in some way, bit-band register access -should- be faster, however I have found
 /// that something about the way gcc does register allocation results in the bit-band code being slower.  It will need more fine tuning.
 /// The registers are data output, set output, clear output, toggle output, input, and direction
-template<uint8_t PIN, uint32_t _MASK, typename _PDOR, typename _PSOR, typename _PCOR, typename _PTOR, typename _PDIR, typename _PDDR> class _ARMPIN { 
+template<uint8_t PIN, uint32_t _MASK, typename _PDOR, typename _PSOR, typename _PCOR, typename _PTOR, typename _PDIR, typename _PDDR> class _ARMPIN {
 public:
 	typedef volatile uint32_t * port_ptr_t;
 	typedef uint32_t port_t;
@@ -18,7 +28,7 @@ public:
 	inline static void set(register port_t val) __attribute__ ((always_inline)) { _PDOR::r() = val; }
 
 	inline static void strobe() __attribute__ ((always_inline)) { toggle(); toggle(); }
-	
+
 	inline static void toggle() __attribute__ ((always_inline)) { _PTOR::r() = _MASK; }
 
 	inline static void hi(register port_ptr_t port) __attribute__ ((always_inline)) { hi(); }
@@ -28,12 +38,14 @@ public:
 	inline static port_t hival() __attribute__ ((always_inline)) { return _PDOR::r() | _MASK; }
 	inline static port_t loval() __attribute__ ((always_inline)) { return _PDOR::r() & ~_MASK; }
 	inline static port_ptr_t port() __attribute__ ((always_inline)) { return &_PDOR::r(); }
+	inline static port_ptr_t sport() __attribute__ ((always_inline)) { return &_PSOR::r(); }
+	inline static port_ptr_t cport() __attribute__ ((always_inline)) { return &_PCOR::r(); }
 	inline static port_t mask() __attribute__ ((always_inline)) { return _MASK; }
 };
 
-/// Template definition for teensy 3.0 style ARM pins using bit banding, providing direct access to the various GPIO registers.  GCC 
+/// Template definition for teensy 3.0 style ARM pins using bit banding, providing direct access to the various GPIO registers.  GCC
 /// does a poor job of optimizing around these accesses so they are not being used just yet.
-template<uint8_t PIN, int _BIT, typename _PDOR, typename _PSOR, typename _PCOR, typename _PTOR, typename _PDIR, typename _PDDR> class _ARMPIN_BITBAND { 
+template<uint8_t PIN, int _BIT, typename _PDOR, typename _PSOR, typename _PCOR, typename _PTOR, typename _PDIR, typename _PDDR> class _ARMPIN_BITBAND {
 public:
 	typedef volatile uint32_t * port_ptr_t;
 	typedef uint32_t port_t;
@@ -46,7 +58,7 @@ public:
 	inline static void set(register port_t val) __attribute__ ((always_inline)) { *_PDOR::template rx<_BIT>() = val; }
 
 	inline static void strobe() __attribute__ ((always_inline)) { toggle(); toggle(); }
-	
+
 	inline static void toggle() __attribute__ ((always_inline)) { *_PTOR::template rx<_BIT>() = 1; }
 
 	inline static void hi(register port_ptr_t port) __attribute__ ((always_inline)) { hi();  }
@@ -63,6 +75,7 @@ public:
 #define GPIO_BITBAND_ADDR(reg, bit) (((uint32_t)&(reg) - 0x40000000) * 32 + (bit) * 4 + 0x42000000)
 #define GPIO_BITBAND_PTR(reg, bit) ((uint32_t *)GPIO_BITBAND_ADDR((reg), (bit)))
 
+#define _R(T) struct __gen_struct_ ## T
 #define _RD32(T) struct __gen_struct_ ## T { static __attribute__((always_inline)) inline reg32_t r() { return T; } \
 	template<int BIT> static __attribute__((always_inline)) inline ptr_reg32_t rx() { return GPIO_BITBAND_PTR(T, BIT); } };
 #define _IO32(L) _RD32(GPIO ## L ## _PDOR); _RD32(GPIO ## L ## _PSOR); _RD32(GPIO ## L ## _PCOR); _RD32(GPIO ## L ## _PTOR); _RD32(GPIO ## L ## _PDIR); _RD32(GPIO ## L ## _PDDR);
@@ -70,9 +83,9 @@ public:
 #define _DEFPIN_ARM(PIN, BIT, L) template<> class FastPin<PIN> : public _ARMPIN<PIN, 1 << BIT, _R(GPIO ## L ## _PDOR), _R(GPIO ## L ## _PSOR), _R(GPIO ## L ## _PCOR), \
 																			_R(GPIO ## L ## _PTOR), _R(GPIO ## L ## _PDIR), _R(GPIO ## L ## _PDDR)> {}; \
 									template<> class FastPinBB<PIN> : public _ARMPIN_BITBAND<PIN, BIT, _R(GPIO ## L ## _PDOR), _R(GPIO ## L ## _PSOR), _R(GPIO ## L ## _PCOR), \
- 																			_R(GPIO ## L ## _PTOR), _R(GPIO ## L ## _PDIR), _R(GPIO ## L ## _PDDR)> {}; 
+ 																			_R(GPIO ## L ## _PTOR), _R(GPIO ## L ## _PDIR), _R(GPIO ## L ## _PDDR)> {};
 
-// Actual pin definitions 																	
+// Actual pin definitions
 #if defined(FASTLED_TEENSY3) && defined(CORE_TEENSY)
 
 _IO32(A); _IO32(B); _IO32(C); _IO32(D); _IO32(E);
@@ -92,14 +105,16 @@ _DEFPIN_ARM(32, 18, B); _DEFPIN_ARM(33, 4, A);
 #define SPI_CLOCK 13
 #define SPI1            (*(SPI_t *)0x4002D000)
 
-#if  defined(__MK20DX256__) 
 #define SPI2_DATA 7
 #define SPI2_CLOCK 14
-#endif
 
 #define FASTLED_TEENSY3
 #define ARM_HARDWARE_SPI
 #define HAS_HARDWARE_PIN_SUPPORT
 #endif
 
-#endif
+#endif // FASTLED_FORCE_SOFTWARE_PINS
+
+FASTLED_NAMESPACE_END
+
+#endif // __INC_FASTPIN_ARM_K20

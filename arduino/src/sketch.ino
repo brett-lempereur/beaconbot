@@ -18,23 +18,24 @@ const uint8_t BASE_PIN = 3;
 const uint8_t BRAND_COUNT = 13;
 const uint8_t BRAND_PIN_LEFT = 5;
 const uint8_t BRAND_PIN_RIGHT = 6;
+const uint8_t BRAND_FUNCTIONS = 3;
 
 // Wireless network configuration.
-char* WIFI_SSID = "DoESLiverpool";
-char* WIFI_KEY = "decafbad00";
+char* WIFI_SSID = "";
+char* WIFI_KEY = "";
 
 // Messaging configuration.
 char* MQTT_SERVER = "m20.cloudmqtt.com";
 int MQTT_PORT = 15508;
-char* MQTT_USER = "vujsgagk";
-char* MQTT_PASSWORD = "AtgjF07N_ahU";
+char* MQTT_USER = "";
+char* MQTT_PASSWORD = "";
 char* MQTT_TOPIC = "beacon/colour";
 
 // Base lighting status.
 CRGB base_leds[BASE_COUNT];
 
 // Brand lighting status.
-uint8_t brand_percent;
+uint8_t brand_percent, brand_function;
 CRGB brand_leds_p[BRAND_COUNT];
 CRGB brand_leds[BRAND_COUNT];
 
@@ -49,31 +50,45 @@ void setup()
 {
 
     // Initialise the serial port for debugging.
+#ifdef DEBUG
     Serial.begin(9600);
+#endif
 
     // Connect to the WiFi network.
     if (WiFi.status() == WL_NO_SHIELD) {
+#ifdef DEBUG
         Serial.println("No wireless shield installed.");
+#endif
         while (true);
     } else {
         while (WiFi.status() != WL_CONNECTED) {
+#ifdef DEBUG
             Serial.print("Connecting to SSID: ");
             Serial.println(WIFI_SSID);
+#endif
             WiFi.begin(WIFI_SSID, WIFI_KEY);
         }
     }
+#ifdef DEBUG
     Serial.print("Connected to network: ");
     Serial.print(WiFi.localIP());
     Serial.print(", gateway: ");
     Serial.println(WiFi.gatewayIP());
+#endif
 
     // Check connectivity.
+#ifdef DEBUG
     Serial.println("Checking connection: www.google.com:80");
+#endif
     while (!mqtt_wifi.connect("www.google.com", 80)) {
+#ifdef DEBUG
         Serial.println("Could not connect to: www.google.com:80");
+#endif
         delay(1000);
     }
+#ifdef DEBUG
     Serial.println("Connected to: www.google.com:80");
+#endif
     mqtt_wifi.stop();
 
     // Initialise the lighting strip.
@@ -85,21 +100,33 @@ void setup()
     fill_solid(brand_leds_p, BRAND_COUNT, CRGB(255, 255, 255));
     FastLED.show();
 
+    // Initialise the brand lighting animation.
+    brand_percent = 0;
+    brand_function = random(BRAND_FUNCTIONS - 1);
+
     // Connect to the messaging server and subscribe.
+#ifdef DEBUG
     Serial.print("Connecting to messaging server: ");
     Serial.print(MQTT_SERVER);
     Serial.print(":");
     Serial.println(MQTT_PORT);
+#endif
     while (!mqtt.connect("arduino-beaconbot", MQTT_USER, MQTT_PASSWORD)) {
+#ifdef DEBUG
         Serial.println("Retrying connection to messaging server.");
+#endif
         delay(1000);
     }
+#ifdef DEBUG
     Serial.print("Subscribing to topic: ");
     Serial.println(MQTT_TOPIC);
+#endif
     mqtt.subscribe(MQTT_TOPIC);
     
     // Debug messaging.
+#ifdef DEBUG
     Serial.println("Initialisation complete, waiting for messages.");
+#endif
 
 }
 
@@ -112,19 +139,36 @@ void loop()
     // Try to process messages from the messaging server, and if we're
     // disconnected attempt to reconnect.
     if (!mqtt.loop()) {
+#if DEBUG
         Serial.println("Disconnected from messaging server, reconnecting.");
+#endif
         while (!mqtt.connect("arduino-beaconbot", MQTT_USER, MQTT_PASSWORD)) {
+#ifdef DEBUG
             Serial.println("Retrying connection to messaging server.");
+#endif
         }
+#ifdef DEBUG
         Serial.println("Reconnected to messaging server.");
+#endif
     }
 
     // Animate the lights.
-    anim_blink(brand_percent);
+    switch (brand_function) {
+        case 0:
+            anim_blink();
+            break;
+        case 1:
+            anim_chase();
+            break;
+        case 2:
+            anim_fade();
+            break;
+    }
 
     // If we've reached the end of the animation, reset the counter and copy
     // the current light status to the previous.
     if (brand_percent == 255) {
+        brand_function = random(BRAND_FUNCTIONS);
         brand_percent = 0;
         memcpy(brand_leds_p, brand_leds, sizeof(CRGB) * BRAND_COUNT);
     } else {
@@ -145,10 +189,12 @@ void on_colour(char* topic, uint8_t* payload, unsigned int length)
 
     // Payload length must be three bytes.
     if (length != 3) {
+#ifdef DEBUG
         Serial.print("Invalid message recieved for topic '");
         Serial.print(topic);
         Serial.print("', length ");
         Serial.println(length);
+#endif
         return;
     }
 
@@ -156,6 +202,7 @@ void on_colour(char* topic, uint8_t* payload, unsigned int length)
     CRGB *colour = (CRGB*)payload;
 
     // Debug messaging.
+#ifdef DEBUG
     Serial.print("Received message on topic '");
     Serial.print(topic);
     Serial.print("', setting colour to ");
@@ -164,6 +211,7 @@ void on_colour(char* topic, uint8_t* payload, unsigned int length)
     Serial.print(colour->g);
     Serial.print(",");
     Serial.println(colour->b);
+#endif
 
     // Update the colour of the display.
     fill_solid(base_leds, BASE_COUNT, *colour);
@@ -172,20 +220,20 @@ void on_colour(char* topic, uint8_t* payload, unsigned int length)
 }
 
 /**
- * Blink brand lighting animation routine.
+ * Chase brand lighting animation routine.
  */
-void anim_blink(const uint8_t p)
+void anim_chase()
 {
 
     // Special case to ensure the final light is enabled before this animation
     // routine terminates.
-    if (p == 255) {
+    if (brand_percent == 255) {
         memcpy(brand_leds, brand_leds_p, sizeof(CRGB) * BRAND_COUNT);
     } else {
         // Iterate over all lights, setting an LED to black based on the current
         // progress and copying the rest from the previous value. 
         for (int i = 0; i < BRAND_COUNT; i++) {
-            if (scale8(p, BRAND_COUNT) == i) {
+            if (scale8(brand_percent, BRAND_COUNT) == i) {
                 brand_leds[i] = CRGB::Black;
             } else {
                 brand_leds[i] = brand_leds_p[i];
@@ -196,5 +244,44 @@ void anim_blink(const uint8_t p)
     // Update the display.
     FastLED.show();
 
+}
+
+/**
+ * Blink brand lighting animation routine.
+ */
+void anim_blink()
+{
+    if ((brand_percent / 16) % 2 == 0) {
+        fill_solid(brand_leds, BRAND_COUNT, CRGB::Black);
+    } else {
+        memcpy(brand_leds, brand_leds_p, sizeof(CRGB) * BRAND_COUNT);
+    }
+    FastLED.show();
+}
+
+/**
+ * Pick and fade to a random colour.
+ */
+void anim_fade()
+{
+    static CHSV target;
+
+    // If this is the beginning of a fade, pick a random colour.
+    if (brand_percent == 0) {
+        
+        target.r = random8();
+        target.g = random8();
+        target.b = random8();
+    }
+
+    // Interpolate the current colour.
+    CRGB current;
+    current.r = lerp8by8(brand_leds_p[0].r, target.r, brand_percent);
+    current.g = lerp8by8(brand_leds_p[0].g, target.g, brand_percent);
+    current.b = lerp8by8(brand_leds_p[0].b, target.b, brand_percent);
+
+    // Fill the array and show the result.
+    fill_solid(brand_leds, BRAND_COUNT, current);
+    FastLED.show();
 }
 

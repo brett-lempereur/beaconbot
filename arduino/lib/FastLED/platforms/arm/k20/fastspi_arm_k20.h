@@ -1,12 +1,17 @@
 #ifndef __INC_FASTSPI_ARM_H
 #define __INC_FASTSPI_ARM_H
 
+FASTLED_NAMESPACE_BEGIN
 
 #if defined(FASTLED_TEENSY3) && defined(CORE_TEENSY)
 
 // Version 1.20 renamed SPI_t to KINETISK_SPI_t
 #if TEENSYDUINO >= 120
 #define SPI_t KINETISK_SPI_t
+#endif
+
+#ifndef KINETISK_SPI0
+#define KINETISK_SPI0 SPI0
 #endif
 
 #ifndef SPI_PUSHR_CONT
@@ -88,30 +93,34 @@ class ARMHardwareSPIOutput {
 	// Borrowed from the teensy3 SPSR emulation code
 	static inline void enable_pins(void) __attribute__((always_inline)) {
 		//serial_print("enable_pins\n");
-		if(_DATA_PIN == 11) {
-			CORE_PIN11_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2);
-			CORE_PIN12_CONFIG = PORT_PCR_MUX(2);
-			CORE_PIN13_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2);
-		} else if(_DATA_PIN == 7) {
-			CORE_PIN7_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2);
-			CORE_PIN8_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2);
-			CORE_PIN14_CONFIG =  PORT_PCR_DSE | PORT_PCR_MUX(2);
+		switch(_DATA_PIN) {
+			case 7: CORE_PIN7_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2); break;
+			// case 8: CORE_PIN8_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2); break;
+			case 11: CORE_PIN11_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2); break;
+			// case 12: CORE_PIN12_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2); break;
+		}
+
+		switch(_CLOCK_PIN) {
+			case 13: CORE_PIN13_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2); break;
+			case 14: CORE_PIN14_CONFIG = PORT_PCR_DSE | PORT_PCR_MUX(2); break;
 		}
 	}
 
 	// Borrowed from the teensy3 SPSR emulation code
 	static inline void disable_pins(void) __attribute__((always_inline)) {
-		//serial_print("disable_pins\n");
-		if(_DATA_PIN == 11) {
-			CORE_PIN11_CONFIG = PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1);
-			CORE_PIN12_CONFIG = PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1);
-			CORE_PIN13_CONFIG = PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1);
-		} else if(_DATA_PIN == 7) {
-			CORE_PIN7_CONFIG = PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1);
-			CORE_PIN8_CONFIG = PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1);
-			CORE_PIN14_CONFIG = PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1);
+		switch(_DATA_PIN) {
+			case 7: CORE_PIN7_CONFIG = PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1); break;
+			// case 8: CORE_PIN8_CONFIG = PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1); break;
+			case 11: CORE_PIN11_CONFIG = PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1); break;
+			// case 12: CORE_PIN12_CONFIG = PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1); break;
 		}
-}
+
+		switch(_CLOCK_PIN) {
+			case 13: CORE_PIN13_CONFIG = PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1); break;
+			case 14: CORE_PIN14_CONFIG = PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1); break;
+		}
+	}
+
 public:
 	ARMHardwareSPIOutput() { m_pSelect = NULL; }
 	ARMHardwareSPIOutput(Selectable *pSelect) { m_pSelect = pSelect; }
@@ -144,42 +153,42 @@ public:
     }
 
     void setSPIRate() {
-		// Configure CTAR0, defaulting to 8 bits and CTAR1, defaulting to 16 bits
-	 	uint32_t _PBR = 0;
-	 	uint32_t _BR = 0;
-	 	uint32_t _CSSCK = 0;
-	 	uint32_t _DBR = 0;
+			// Configure CTAR0, defaulting to 8 bits and CTAR1, defaulting to 16 bits
+		 	uint32_t _PBR = 0;
+		 	uint32_t _BR = 0;
+		 	uint32_t _CSSCK = 0;
+		 	uint32_t _DBR = 0;
 
-	 	// if(_SPI_CLOCK_DIVIDER >= 256) 		{ _PBR = 0; _BR = _CSSCK = 7; _DBR = 0; } // osc/256
-	 	// else if(_SPI_CLOCK_DIVIDER >= 128) 	{ _PBR = 0; _BR = _CSSCK = 6; _DBR = 0; } // osc/128
-	 	// else if(_SPI_CLOCK_DIVIDER >= 64) 	{ _PBR = 0; _BR = _CSSCK = 5; _DBR = 0; } // osc/64
-	 	// else if(_SPI_CLOCK_DIVIDER >= 32) 	{ _PBR = 0; _BR = _CSSCK = 4; _DBR = 0; } // osc/32
-	 	// else if(_SPI_CLOCK_DIVIDER >= 16) 	{ _PBR = 0; _BR = _CSSCK = 3; _DBR = 0; } // osc/16
-	 	// else if(_SPI_CLOCK_DIVIDER >= 8) 	{ _PBR = 0; _BR = _CSSCK = 1; _DBR = 0; } // osc/8
-	 	// else if(_SPI_CLOCK_DIVIDER >= 7) 	{ _PBR = 3; _BR = _CSSCK = 0; _DBR = 1; } // osc/7
-	 	// else if(_SPI_CLOCK_DIVIDER >= 5) 	{ _PBR = 2; _BR = _CSSCK = 0; _DBR = 1; } // osc/5
-	 	// else if(_SPI_CLOCK_DIVIDER >= 4) 	{ _PBR = 0; _BR = _CSSCK = 0; _DBR = 0; } // osc/4
-	 	// else if(_SPI_CLOCK_DIVIDER >= 3) 	{ _PBR = 1; _BR = _CSSCK = 0; _DBR = 1; } // osc/3
-	 	// else                                { _PBR = 0; _BR = _CSSCK = 0; _DBR = 1; } // osc/2
+		 	// if(_SPI_CLOCK_DIVIDER >= 256) 		{ _PBR = 0; _BR = _CSSCK = 7; _DBR = 0; } // osc/256
+		 	// else if(_SPI_CLOCK_DIVIDER >= 128) 	{ _PBR = 0; _BR = _CSSCK = 6; _DBR = 0; } // osc/128
+		 	// else if(_SPI_CLOCK_DIVIDER >= 64) 	{ _PBR = 0; _BR = _CSSCK = 5; _DBR = 0; } // osc/64
+		 	// else if(_SPI_CLOCK_DIVIDER >= 32) 	{ _PBR = 0; _BR = _CSSCK = 4; _DBR = 0; } // osc/32
+		 	// else if(_SPI_CLOCK_DIVIDER >= 16) 	{ _PBR = 0; _BR = _CSSCK = 3; _DBR = 0; } // osc/16
+		 	// else if(_SPI_CLOCK_DIVIDER >= 8) 	{ _PBR = 0; _BR = _CSSCK = 1; _DBR = 0; } // osc/8
+		 	// else if(_SPI_CLOCK_DIVIDER >= 7) 	{ _PBR = 3; _BR = _CSSCK = 0; _DBR = 1; } // osc/7
+		 	// else if(_SPI_CLOCK_DIVIDER >= 5) 	{ _PBR = 2; _BR = _CSSCK = 0; _DBR = 1; } // osc/5
+		 	// else if(_SPI_CLOCK_DIVIDER >= 4) 	{ _PBR = 0; _BR = _CSSCK = 0; _DBR = 0; } // osc/4
+		 	// else if(_SPI_CLOCK_DIVIDER >= 3) 	{ _PBR = 1; _BR = _CSSCK = 0; _DBR = 1; } // osc/3
+		 	// else                                { _PBR = 0; _BR = _CSSCK = 0; _DBR = 1; } // osc/2
 
-	 	getScalars<_SPI_CLOCK_DIVIDER>(_PBR, _BR, _DBR);
-	 	_CSSCK = _BR;
+		 	getScalars<_SPI_CLOCK_DIVIDER>(_PBR, _BR, _DBR);
+		 	_CSSCK = _BR;
 
-	 	uint32_t ctar0 = SPI_CTAR_FMSZ(7) | SPI_CTAR_PBR(_PBR) | SPI_CTAR_BR(_BR) | SPI_CTAR_CSSCK(_CSSCK);
-	 	uint32_t ctar1 = SPI_CTAR_FMSZ(15) | SPI_CTAR_PBR(_PBR) | SPI_CTAR_BR(_BR) | SPI_CTAR_CSSCK(_CSSCK);
+		 	uint32_t ctar0 = SPI_CTAR_FMSZ(7) | SPI_CTAR_PBR(_PBR) | SPI_CTAR_BR(_BR) | SPI_CTAR_CSSCK(_CSSCK);
+		 	uint32_t ctar1 = SPI_CTAR_FMSZ(15) | SPI_CTAR_PBR(_PBR) | SPI_CTAR_BR(_BR) | SPI_CTAR_CSSCK(_CSSCK);
 
-#if USE_CONT == 1
-	 	ctar0 |= SPI_CTAR_CPHA | SPI_CTAR_CPOL;
-	 	ctar1 |= SPI_CTAR_CPHA | SPI_CTAR_CPOL;
-#endif
+	#if USE_CONT == 1
+		 	ctar0 |= SPI_CTAR_CPHA | SPI_CTAR_CPOL;
+		 	ctar1 |= SPI_CTAR_CPHA | SPI_CTAR_CPOL;
+	#endif
 
-	 	if(_DBR) {
-	 		ctar0 |= SPI_CTAR_DBR;
-	 		ctar1 |= SPI_CTAR_DBR;
-	 	}
+		 	if(_DBR) {
+		 		ctar0 |= SPI_CTAR_DBR;
+		 		ctar1 |= SPI_CTAR_DBR;
+		 	}
 
-	    update_ctar0(ctar0);
-	    update_ctar1(ctar1);
+		    update_ctar0(ctar0);
+		    update_ctar1(ctar1);
 
     }
 
@@ -191,7 +200,7 @@ public:
 
 		// Enable SPI0 clock
 		uint32_t sim6 = SIM_SCGC6;
-		if((SPI_t*)pSPIX == &SPI0) {
+		if((SPI_t*)pSPIX == &KINETISK_SPI0) {
 			if (!(sim6 & SIM_SCGC6_SPI0)) {
 				//serial_print("init1\n");
 				SIM_SCGC6 = sim6 | SIM_SCGC6_SPI0;
@@ -204,13 +213,16 @@ public:
 				SPIX.CTAR0 = SPI_CTAR_FMSZ(7) | SPI_CTAR_PBR(1) | SPI_CTAR_BR(1);
 			}
 		}
+
+
 		setSPIRate();
 
 		// Configure SPI as the master and enable
 		SPIX.MCR |= SPI_MCR_MSTR; // | SPI_MCR_CONT_SCKE);
 		SPIX.MCR &= ~(SPI_MCR_MDIS | SPI_MCR_HALT);
 
-		enable_pins();
+		// don't enable the pins until we're ready to write out!
+		// enable_pins();
 	}
 
 	static void waitFully() __attribute__((always_inline)) {
@@ -280,8 +292,16 @@ public:
 		update_ctar1(ctar1_save);
 	}
 
-	void inline select() __attribute__((always_inline)) { if(m_pSelect != NULL) { m_pSelect->select(); } }
-	void inline release() __attribute__((always_inline)) { if(m_pSelect != NULL) { m_pSelect->release(); } }
+	void inline select() __attribute__((always_inline)) {
+		if(m_pSelect != NULL) { m_pSelect->select(); }
+		setSPIRate();
+		enable_pins();
+	}
+
+	void inline release() __attribute__((always_inline)) {
+		disable_pins();
+		if(m_pSelect != NULL) { m_pSelect->release(); }
+	}
 
 	static void writeBytesValueRaw(uint8_t value, int len) {
 		while(len--) { Write<CM, WM, NOTLAST>::writeByte(value); }
@@ -316,7 +336,7 @@ public:
 	// write a block of uint8_ts out in groups of three.  len is the total number of uint8_ts to write out.  The template
 	// parameters indicate how many uint8_ts to skip at the beginning and/or end of each grouping
 	template <uint8_t FLAGS, class D, EOrder RGB_ORDER> void writePixels(PixelController<RGB_ORDER> pixels) {
-		// setSPIRate();
+		setSPIRate();
 		select();
 		int len = pixels.mLen;
 
@@ -371,5 +391,7 @@ public:
 	}
 };
 #endif
+
+FASTLED_NAMESPACE_END
 
 #endif
