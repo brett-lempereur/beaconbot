@@ -11,12 +11,12 @@
 #include <PubSubClient.h>
 
 // Base light configuration.
-const uint8_t BASE_COUNT = 8;
-const uint8_t BASE_PIN = 9;
+const uint8_t BASE_COUNT = 20;
+const uint8_t BASE_PIN = 3;
 
 // Wireless network configuration.
-char* WIFI_SSID = "";
-char* WIFI_KEY = "";
+char* WIFI_SSID = "DoESLiverpool";
+char* WIFI_KEY = "decafbad00";
 
 // Messaging configuration.
 char* MQTT_SERVER = "m20.cloudmqtt.com";
@@ -76,7 +76,7 @@ void setup()
     Serial.print(MQTT_SERVER);
     Serial.print(":");
     Serial.println(MQTT_PORT);
-    while (!mqtt.connect("arduino-mqttower", MQTT_USER, MQTT_PASSWORD)) {
+    while (!mqtt.connect("arduino-beaconbot", MQTT_USER, MQTT_PASSWORD)) {
         Serial.println("Retrying connection to messaging server.");
         delay(1000);
     }
@@ -94,7 +94,17 @@ void setup()
  */
 void loop()
 {
-    mqtt.loop();
+
+    // Try to process messages from the messaging server, and if we're
+    // disconnected attempt to reconnect.
+    if (!mqtt.loop()) {
+        Serial.println("Disconnected from messaging server, reconnecting.");
+        while (!mqtt.connect("arduino-beaconbot", MQTT_USER, MQTT_PASSWORD)) {
+            Serial.println("Retrying connection to messaging server.");
+        }
+        Serial.println("Reconnected to messaging server.");
+    }
+
 }
 
 /**
