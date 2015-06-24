@@ -26,8 +26,8 @@ char* WIFI_KEY = "decafbad00";
 // Messaging configuration.
 char* MQTT_SERVER = "m20.cloudmqtt.com";
 int MQTT_PORT = 15508;
-char* MQTT_USER = "";
-char* MQTT_PASSWORD = "";
+char* MQTT_USER = "vujsgagk";
+char* MQTT_PASSWORD = "AtgjF07N_ahU";
 char* MQTT_TOPIC = "beacon/colour";
 
 // Base lighting status.
@@ -78,8 +78,8 @@ void setup()
 
     // Initialise the lighting strip.
     FastLED.addLeds<WS2812, BASE_PIN, GRB>(base_leds, BASE_COUNT);
-    FastLED.addLeds<WS2812, BRAND_PIN_A, GRB>(brand_leds, BRAND_COUNT);
-    FastLED.addLeds<WS2812, BRAND_PIN_B, GRB>(brand_leds, BRAND_COUNT);
+    FastLED.addLeds<WS2812, BRAND_PIN_LEFT, GRB>(brand_leds, BRAND_COUNT);
+    FastLED.addLeds<WS2812, BRAND_PIN_RIGHT, GRB>(brand_leds, BRAND_COUNT);
     fill_solid(base_leds, BASE_COUNT, CRGB(255, 255, 255));
     fill_solid(brand_leds, BRAND_COUNT, CRGB(255, 255, 255));
     fill_solid(brand_leds_p, BRAND_COUNT, CRGB(255, 255, 255));
@@ -119,6 +119,21 @@ void loop()
         Serial.println("Reconnected to messaging server.");
     }
 
+    // Animate the lights.
+    anim_blink(brand_percent);
+
+    // If we've reached the end of the animation, reset the counter and copy
+    // the current light status to the previous.
+    if (brand_percent == 255) {
+        brand_percent = 0;
+        memcpy(brand_leds_p, brand_leds, sizeof(CRGB) * BRAND_COUNT);
+    } else {
+        brand_percent++;
+    }
+
+    // Pause before continuing so the animation doesn't run too fast.
+    delay(10);
+
 }
 
 /**
@@ -152,6 +167,33 @@ void on_colour(char* topic, uint8_t* payload, unsigned int length)
 
     // Update the colour of the display.
     fill_solid(base_leds, BASE_COUNT, *colour);
+    FastLED.show();
+
+}
+
+/**
+ * Blink brand lighting animation routine.
+ */
+void anim_blink(const uint8_t p)
+{
+
+    // Special case to ensure the final light is enabled before this animation
+    // routine terminates.
+    if (p == 255) {
+        memcpy(brand_leds, brand_leds_p, sizeof(CRGB) * BRAND_COUNT);
+    } else {
+        // Iterate over all lights, setting an LED to black based on the current
+        // progress and copying the rest from the previous value. 
+        for (int i = 0; i < BRAND_COUNT; i++) {
+            if (scale8(p, BRAND_COUNT) == i) {
+                brand_leds[i] = CRGB::Black;
+            } else {
+                brand_leds[i] = brand_leds_p[i];
+            }
+        }
+    }
+
+    // Update the display.
     FastLED.show();
 
 }
