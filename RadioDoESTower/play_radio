@@ -1,0 +1,61 @@
+#!/usr/bin/ruby
+# Simple script to play mp3s in a loop, regularly checking for new
+# ones and inserting them into the playlist
+# If defined, IDENT will be played in between mp3s
+
+# Directory containing the music to play
+music_dir = "/home/adrian/Dropbox/Apps/RadioDoESTower/"
+
+IDENT = nil #"ident.wav"
+
+def add_tracks_to_playlist(list, idx)
+  Dir.foreach(".") do |f|
+    # Simple check for now, as we're only interested in mp3 files
+    if File.extname(f) == ".mp3" && f != IDENT && !list.include?(f)
+      puts "Adding #{f} to the playlist"
+      list.insert(idx, f)
+    end
+  end
+  list
+end
+
+Dir.chdir(music_dir) do
+  playlist = []
+  index = 0
+
+  while true
+    playlist = add_tracks_to_playlist(playlist, index)
+    
+    # Play the ident, if we've got one
+    unless IDENT.nil?
+      unless system("mplayer '#{IDENT}'")
+        # If we get here, then mplayer didn't exit cleanly. As that'll
+        # usually be because the user has interrupted it with Ctrl-C
+        # we don't want to delete this file, nor carry on with the 
+        # next, so just exit
+        exit
+      end
+    end
+
+    # Play the next track
+    if index < playlist.length
+      # Using system because that gives us useful stdout (i.e. you
+      # can see how far through you've played, as the stdout isn't
+      # consumed by ``)
+      unless system("mplayer '#{playlist[index]}'")
+        # If we get here, then mplayer didn't exit cleanly. As that'll
+        # usually be because the user has interrupted it with Ctrl-C
+        # we don't want to delete this file, nor carry on with the 
+        # next, so just exit
+        exit
+      end
+    end
+
+    # Move onto the next one
+    index = index + 1
+    if index == playlist.length
+      index = 0
+    end
+  end
+end
+
