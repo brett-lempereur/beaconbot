@@ -1,4 +1,5 @@
-IMPORTANT NOTE: If you are building for AVR based systems, it is possible that using any version of the arduino IDE 1.5.7 or later and/or GCC 4.8 may introduce some issues.  I believe I have fixed them, but if you run into issues using these platforms, please file an issue at http://fastled.io/issues - thank you!
+IMPORTANT NOTE: For AVR based systems, avr-gcc 4.8.x is supported, as is avr-gcc 4.3 and earlier.  There are known issues with avr-gcc 4.7 and timing based chipsets like the WS2812B.  If you are using a linux system make sure you are using avr-gcc 4.8.x not avr-gcc 4.7.x.
+
 
 FastLED 3.0
 ===========
@@ -32,8 +33,8 @@ How quickly can you get up and running with the library?  Here's a simple blink 
 	#define NUM_LEDS 60
 	CRGB leds[NUM_LEDS];
 	void setup() { FastLED.addLeds<NEOPIXEL, 6>(leds, NUM_LEDS); }
-	void loop() { 
-		leds[0] = CRGB::White; FastLED.show(); delay(30); 
+	void loop() {
+		leds[0] = CRGB::White; FastLED.show(); delay(30);
 		leds[0] = CRGB::Black; FastLED.show(); delay(30);
 	}
 
@@ -41,6 +42,7 @@ How quickly can you get up and running with the library?  Here's a simple blink 
 
 Here's a list of all the LED chipsets are supported.  More details on the led chipsets are included *TODO: Link to wiki page*
 
+* Adafruit's DotStars - AKA the APA102
 * Adafruit's Neopixel - aka the WS2812B (also WS2811/WS2812, also suppored in lo-speed mode) - a 3 wire addressable led chipset
 * TM1809/4 - 3 wire chipset, cheaply available on aliexpress.com
 * TM1803 - 3 wire chipset, sold by radio shack
@@ -62,13 +64,14 @@ LPD6803, HL1606, and "595"-style shift registers are no longer supported by the 
 
 Right now the library is supported on a variety of arduino compatable platforms.  If it's ARM or AVR and uses the arduino software (or a modified version of it to build) then it is likely supported.  Note that we have a long list of upcoming platforms to support, so if you don't see what you're looking for here, ask, it may be on the roadmap (or may already be supported).  N.B. at the moment we are only supporting the stock compilers that ship with the arduino software.  Support for upgraded compilers, as well as using AVR studio and skipping the arduino entirely, should be coming in a near future release.
 
-* Arduino & compatibles - straight up arduino devices, uno, duo, leonardo, mega, nano, etc...
-* Arduino Yún
+* Arduino & compatibles - straight up arduino devices, uno, duo, leonardo, mega, nano, etc... NOTE: On the mega, you can't use pins 42,43,44,45,46,47,48, and 49 with 3-wire chipsets.
 * Adafruit Trinket & Gemma - Trinket Pro may be supported, but haven't tested to confirm yet
-* Teensy 2, Teensy++ 2, Teensy 3.1 - arduino compataible from pjrc.com with some extra goodies (note the teensy 3 is ARM, not AVR!)
+* Teensy 2, Teensy++ 2, Teensy 3.0, Teensy 3.1, Teensy LC - arduino compataible from pjrc.com with some extra goodies (note the teensy 3 is ARM, not AVR!)
 * Arduino Due and the digistump DigiX
+* RFDuino
+* SparkCore
 
-What types of platforms are we thinking about supporting in the future?  Here's a short list:  RFDuino, SparkCore, MSP430, ChipKit32, Maple, Beagleboard
+What types of platforms are we thinking about supporting in the future?  Here's a short list:  ChipKit32, Maple, Beagleboard
 
 ## What about that name?
 
@@ -80,4 +83,3 @@ Check out the official site http://fastled.io for links to documentation, issues
 
 
 *TODO* - get candy
-
