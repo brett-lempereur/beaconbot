@@ -26,9 +26,9 @@ char* WIFI_KEY = "";
 
 // Messaging configuration.
 char* MQTT_SERVER = "m20.cloudmqtt.com";
-int MQTT_PORT = 15508;
-char* MQTT_USER = "";
-char* MQTT_PASSWORD = "";
+int MQTT_PORT = 11475;
+char* MQTT_USER = "arduino";
+char* MQTT_PASSWORD = "arduinopassword";
 char* MQTT_TOPIC = "beacon/colour";
 
 // Base lighting status.
@@ -149,34 +149,33 @@ void loop()
         }
 #ifdef DEBUG
         Serial.println("Reconnected to messaging server.");
+        Serial.print("Resubscribing to topic: ");
+        Serial.println(MQTT_TOPIC);
 #endif
+        mqtt.subscribe(MQTT_TOPIC);
     }
 
-    // Animate the lights.
-    switch (brand_function) {
-        case 0:
-            anim_blink();
-            break;
-        case 1:
-            anim_chase();
-            break;
-        case 2:
-            anim_fade();
-            break;
+    // Step the lights through the animation once every ten milliseconds.
+    if (millis() % 10 == 0) {
+        switch (brand_function) {
+            case 0:
+                anim_blink();
+                break;
+            case 1:
+                anim_chase();
+                break;
+            case 2:
+                anim_fade();
+                break;
+        }
+        if (brand_percent == 255) {
+            brand_function = random(BRAND_FUNCTIONS);
+            brand_percent = 0;
+            memcpy(brand_leds_p, brand_leds, sizeof(CRGB) * BRAND_COUNT);
+        } else {
+            brand_percent++;
+        }
     }
-
-    // If we've reached the end of the animation, reset the counter and copy
-    // the current light status to the previous.
-    if (brand_percent == 255) {
-        brand_function = random(BRAND_FUNCTIONS);
-        brand_percent = 0;
-        memcpy(brand_leds_p, brand_leds, sizeof(CRGB) * BRAND_COUNT);
-    } else {
-        brand_percent++;
-    }
-
-    // Pause before continuing so the animation doesn't run too fast.
-    delay(10);
 
 }
 
