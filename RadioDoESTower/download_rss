@@ -2,7 +2,7 @@
 # Simple script to download mp3s from an RSS feed
 
 require 'yaml'
-require 'simple-rss'
+require 'nokogiri'
 require 'open-uri'
 
 # Pull in our configuration
@@ -11,15 +11,16 @@ config = YAML.load_file('config.yaml')
 
 Dir.chdir(config['music_dir']) do
   # Pull down the RSS feed
-  feed = SimpleRSS.parse(open(config['rss_feed']))
+  feed = Nokogiri::XML(open(config['rss_feed']))
 
   # Find any new files and download them
-  feed.items.each do |item|
-    filename = File.basename(item.media_content_url)
+  feed.css('item enclosure').each do |item|
+puts item.inspect
+    filename = File.basename(item['url'])
   
     unless File.exist?(filename)
       puts "Downloading #{filename}"
-      `wget --quiet '#{item.media_content_url}'`
+      `wget --quiet '#{item['url']}'`
     else
       puts "Already got #{filename}"
     end
