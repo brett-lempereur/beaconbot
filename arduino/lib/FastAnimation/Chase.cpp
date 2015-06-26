@@ -26,7 +26,9 @@ void Chase::animate(CRGB* now, const CRGB* last, const uint8_t n, const uint8_t 
     if (f == 255) {
         memcpy(now, last, sizeof(CRGB) * n);
     } else {
-        now[k-1] = last[k-1];
+        if (k > 0) {
+            now[k-1] = last[k-1];
+        }
         now[k] = _colour;
     }
 }
