@@ -1,17 +1,17 @@
 #!/usr/bin/ruby
 # Simple script to download mp3s from an RSS feed
 
+require 'yaml'
 require 'simple-rss'
 require 'open-uri'
 
-# Directory containing the music to play
-MUSIC_DIR = "/home/adrian/Dropbox/Apps/RadioDoESTower/"
+# Pull in our configuration
+config = YAML.load_file('config.yaml')
 
-RSS_FEED = 'http://feeds2.feedburner.com/RatholeRadio'
 
-Dir.chdir(MUSIC_DIR) do
+Dir.chdir(config['music_dir']) do
   # Pull down the RSS feed
-  feed = SimpleRSS.parse(open(RSS_FEED))
+  feed = SimpleRSS.parse(open(config['rss_feed']))
 
   # Find any new files and download them
   feed.items.each do |item|

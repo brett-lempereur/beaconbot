@@ -1,17 +1,19 @@
 #!/usr/bin/ruby
 # Simple script to play mp3s in a loop, regularly checking for new
 # ones and inserting them into the playlist
-# If defined, IDENT will be played in between mp3s
+# If defined in the config, ident_filename will be played in between mp3s
 
-# Directory containing the music to play
-music_dir = "/home/adrian/Dropbox/Apps/RadioDoESTower/"
+require 'yaml'
 
-IDENT = nil #"ident.wav"
+# Pull in our configuration
+config = YAML.load_file('config.yaml')
 
-def add_tracks_to_playlist(list, idx)
+# Function to check for new tracks and insert them into the 
+# playlist list at position idx
+def add_tracks_to_playlist(list, idx, ident_file)
   Dir.foreach(".") do |f|
     # Simple check for now, as we're only interested in mp3 files
-    if File.extname(f) == ".mp3" && f != IDENT && !list.include?(f)
+    if File.extname(f) == ".mp3" && f != ident_file && !list.include?(f)
       puts "Adding #{f} to the playlist"
       list.insert(idx, f)
     end
@@ -19,16 +21,16 @@ def add_tracks_to_playlist(list, idx)
   list
 end
 
-Dir.chdir(music_dir) do
+Dir.chdir(config['music_dir']) do
   playlist = []
   index = 0
 
   while true
-    playlist = add_tracks_to_playlist(playlist, index)
+    playlist = add_tracks_to_playlist(playlist, index, config['ident_filename'])
     
     # Play the ident, if we've got one
-    unless IDENT.nil?
-      unless system("mplayer '#{IDENT}'")
+    unless config['ident_filename'].nil?
+      unless system("mplayer '#{config['ident_filename']}'")
         # If we get here, then mplayer didn't exit cleanly. As that'll
         # usually be because the user has interrupted it with Ctrl-C
         # we don't want to delete this file, nor carry on with the 
