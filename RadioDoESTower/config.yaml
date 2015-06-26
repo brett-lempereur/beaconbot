@@ -1,4 +1,4 @@
-music_dir: "/home/adrian/Dropbox/Apps/RadioDoESTower/"
+music_dir: "/home/pi/Applications/beaconbot/RadioDoESTower/shows/"
 ident_filename: 'ident.wav'
 rss_feed: 'http://feeds2.feedburner.com/RatholeRadio'
 
