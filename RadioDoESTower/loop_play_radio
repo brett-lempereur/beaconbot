@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Set our volume level
+amixer cset numid=1 -- 400
+
+# And start playing!
 cd /home/pi/Applications/beaconbot/RadioDoESTower
 while date; do
 	./play_radio
