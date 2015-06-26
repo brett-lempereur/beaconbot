@@ -1,0 +1,8 @@
+#!/bin/bash
+
+cd /home/pi/Applications/beaconbot/RadioDoESTower
+while date; do
+	./play_radio
+	sleep 20
+done
+
