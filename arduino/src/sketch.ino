@@ -5,8 +5,10 @@
  * Embedded lighting controller for the DoES Liverpool radio tower.
  */
 
+#include <SPI.h>
 #include <WiFi.h>
 
+#include <FastAnimation.h>
 #include <FastLED.h>
 #include <PubSubClient.h>
 
@@ -21,23 +23,39 @@ const uint8_t BRAND_PIN_RIGHT = 6;
 const uint8_t BRAND_FUNCTIONS = 3;
 
 // Wireless network configuration.
-char* WIFI_SSID = "";
-char* WIFI_KEY = "";
+char* WIFI_SSID = "DoESLiverpool";
+char* WIFI_KEY = "decafbad00";
 
 // Messaging configuration.
+char* MQTT_ID = "arduino-beaconbot";
 char* MQTT_SERVER = "m20.cloudmqtt.com";
 int MQTT_PORT = 11475;
 char* MQTT_USER = "arduino";
 char* MQTT_PASSWORD = "arduinopassword";
 char* MQTT_TOPIC = "beacon/colour";
 
+// Animation configuration.
+const uint8_t ANIM_RATE = 8;
+const uint8_t ANIM_COUNT = 7;
+Animation* ANIM_TYPES[] = {
+    new Blink(16, CRGB::Black),
+    new Blink(16, CRGB::White),
+    new Chase(CRGB::Black), 
+    new Chase(CRGB::White),
+    new RandomWipe(255, 255),
+    new RandomSolidFade(255, 255),
+    new RandomFade(BRAND_COUNT, 255, 255)
+};
+
 // Base lighting status.
 CRGB base_leds[BASE_COUNT];
 
 // Brand lighting status.
-uint8_t brand_percent, brand_function;
-CRGB brand_leds_p[BRAND_COUNT];
+CRGB brand_leds_last[BRAND_COUNT];
 CRGB brand_leds[BRAND_COUNT];
+
+// Animation controller.
+RandomAnimator brand_animator(ANIM_TYPES, ANIM_COUNT);
 
 // Messaging status.
 WiFiClient mqtt_wifi;
@@ -49,10 +67,20 @@ PubSubClient mqtt(MQTT_SERVER, MQTT_PORT, on_colour, mqtt_wifi);
 void setup()
 {
 
-    // Initialise the serial port for debugging.
 #ifdef DEBUG
+    // Initialise the serial port for debugging.
     Serial.begin(9600);
 #endif
+
+    // Initialise the lighting strip.
+    FastLED.addLeds<WS2812, BASE_PIN, GRB>(base_leds, BASE_COUNT);
+    FastLED.addLeds<WS2812, BRAND_PIN_LEFT, GRB>(brand_leds, BRAND_COUNT);
+    FastLED.addLeds<WS2812, BRAND_PIN_RIGHT, GRB>(brand_leds, BRAND_COUNT);
+    
+    // Indicate that we're trying to connect to WiFi.
+    fill_solid(base_leds, BASE_COUNT, CRGB::Red);
+    fill_solid(brand_leds, BRAND_COUNT, CRGB::Red);
+    FastLED.show();
 
     // Connect to the WiFi network.
     if (WiFi.status() == WL_NO_SHIELD) {
@@ -76,6 +104,11 @@ void setup()
     Serial.println(WiFi.gatewayIP());
 #endif
 
+    // Indicate that we have connected to Wi-Fi.
+    fill_solid(base_leds, BASE_COUNT, CRGB::Green);
+    fill_solid(brand_leds, BRAND_COUNT, CRGB::Green);
+    FastLED.show();
+    
     // Check connectivity.
 #ifdef DEBUG
     Serial.println("Checking connection: www.google.com:80");
@@ -91,18 +124,10 @@ void setup()
 #endif
     mqtt_wifi.stop();
 
-    // Initialise the lighting strip.
-    FastLED.addLeds<WS2812, BASE_PIN, GRB>(base_leds, BASE_COUNT);
-    FastLED.addLeds<WS2812, BRAND_PIN_LEFT, GRB>(brand_leds, BRAND_COUNT);
-    FastLED.addLeds<WS2812, BRAND_PIN_RIGHT, GRB>(brand_leds, BRAND_COUNT);
-    fill_solid(base_leds, BASE_COUNT, CRGB(255, 255, 255));
-    fill_solid(brand_leds, BRAND_COUNT, CRGB(255, 255, 255));
-    fill_solid(brand_leds_p, BRAND_COUNT, CRGB(255, 255, 255));
+    // Indicate that we have connected to the test server.
+    fill_solid(base_leds, BASE_COUNT, CRGB::Blue);
+    fill_solid(brand_leds, BRAND_COUNT, CRGB::Blue);
     FastLED.show();
-
-    // Initialise the brand lighting animation.
-    brand_percent = 0;
-    brand_function = random(BRAND_FUNCTIONS - 1);
 
     // Connect to the messaging server and subscribe.
 #ifdef DEBUG
@@ -111,7 +136,7 @@ void setup()
     Serial.print(":");
     Serial.println(MQTT_PORT);
 #endif
-    while (!mqtt.connect("arduino-beaconbot", MQTT_USER, MQTT_PASSWORD)) {
+    while (!mqtt.connect(MQTT_ID, MQTT_USER, MQTT_PASSWORD)) {
 #ifdef DEBUG
         Serial.println("Retrying connection to messaging server.");
 #endif
@@ -122,9 +147,15 @@ void setup()
     Serial.println(MQTT_TOPIC);
 #endif
     mqtt.subscribe(MQTT_TOPIC);
+
+    // Indicate that we have completed initialisation.
+    fill_solid(base_leds, BASE_COUNT, CRGB::White);
+    fill_solid(brand_leds, BRAND_COUNT, CRGB::White);
+    fill_solid(brand_leds_last, BRAND_COUNT, CRGB::White);
+    FastLED.show();
     
-    // Debug messaging.
 #ifdef DEBUG
+    // Debug messaging.
     Serial.println("Initialisation complete, waiting for messages.");
 #endif
 
@@ -139,7 +170,7 @@ void loop()
     // Try to process messages from the messaging server, and if we're
     // disconnected attempt to reconnect.
     if (!mqtt.loop()) {
-#if DEBUG
+#ifdef DEBUG
         Serial.println("Disconnected from messaging server, reconnecting.");
 #endif
         while (!mqtt.connect("arduino-beaconbot", MQTT_USER, MQTT_PASSWORD)) {
@@ -149,32 +180,17 @@ void loop()
         }
 #ifdef DEBUG
         Serial.println("Reconnected to messaging server.");
-        Serial.print("Resubscribing to topic: ");
+        Serial.print("Subscribing to topic: ");
         Serial.println(MQTT_TOPIC);
 #endif
         mqtt.subscribe(MQTT_TOPIC);
     }
 
-    // Step the lights through the animation once every ten milliseconds.
-    if (millis() % 10 == 0) {
-        switch (brand_function) {
-            case 0:
-                anim_blink();
-                break;
-            case 1:
-                anim_chase();
-                break;
-            case 2:
-                anim_fade();
-                break;
-        }
-        if (brand_percent == 255) {
-            brand_function = random(BRAND_FUNCTIONS);
-            brand_percent = 0;
-            memcpy(brand_leds_p, brand_leds, sizeof(CRGB) * BRAND_COUNT);
-        } else {
-            brand_percent++;
-        }
+    // Step the lights through the animation without delaying so that we
+    // minimise missed MQTT PING messages.
+    if (millis() % ANIM_RATE == 0) {
+        brand_animator.update(brand_leds, brand_leds_last, BRAND_COUNT);
+        FastLED.show();
     }
 
 }
@@ -189,9 +205,7 @@ void on_colour(char* topic, uint8_t* payload, unsigned int length)
     // Payload length must be three bytes.
     if (length != 3) {
 #ifdef DEBUG
-        Serial.print("Invalid message recieved for topic '");
-        Serial.print(topic);
-        Serial.print("', length ");
+        Serial.print("Invalid message of length: ");
         Serial.println(length);
 #endif
         return;
@@ -216,72 +230,5 @@ void on_colour(char* topic, uint8_t* payload, unsigned int length)
     fill_solid(base_leds, BASE_COUNT, *colour);
     FastLED.show();
 
-}
-
-/**
- * Chase brand lighting animation routine.
- */
-void anim_chase()
-{
-
-    // Special case to ensure the final light is enabled before this animation
-    // routine terminates.
-    if (brand_percent == 255) {
-        memcpy(brand_leds, brand_leds_p, sizeof(CRGB) * BRAND_COUNT);
-    } else {
-        // Iterate over all lights, setting an LED to black based on the current
-        // progress and copying the rest from the previous value. 
-        for (int i = 0; i < BRAND_COUNT; i++) {
-            if (scale8(brand_percent, BRAND_COUNT) == i) {
-                brand_leds[i] = CRGB::Black;
-            } else {
-                brand_leds[i] = brand_leds_p[i];
-            }
-        }
-    }
-
-    // Update the display.
-    FastLED.show();
-
-}
-
-/**
- * Blink brand lighting animation routine.
- */
-void anim_blink()
-{
-    if ((brand_percent / 16) % 2 == 0) {
-        fill_solid(brand_leds, BRAND_COUNT, CRGB::Black);
-    } else {
-        memcpy(brand_leds, brand_leds_p, sizeof(CRGB) * BRAND_COUNT);
-    }
-    FastLED.show();
-}
-
-/**
- * Pick and fade to a random colour.
- */
-void anim_fade()
-{
-    static CRGB target;
-
-    // If this is the beginning of a fade, pick a random colour.
-    if (brand_percent == 0) {
-        CHSV rnd;
-        rnd.h = random8();
-        rnd.s = 255;
-        rnd.v = 255;
-        target = rnd;
-    }
-
-    // Interpolate the current colour.
-    CRGB current;
-    current.r = lerp8by8(brand_leds_p[0].r, target.r, brand_percent);
-    current.g = lerp8by8(brand_leds_p[0].g, target.g, brand_percent);
-    current.b = lerp8by8(brand_leds_p[0].b, target.b, brand_percent);
-
-    // Fill the array and show the result.
-    fill_solid(brand_leds, BRAND_COUNT, current);
-    FastLED.show();
 }
 
