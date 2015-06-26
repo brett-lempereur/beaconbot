@@ -23,8 +23,8 @@ const uint8_t BRAND_PIN_RIGHT = 6;
 const uint8_t BRAND_FUNCTIONS = 3;
 
 // Wireless network configuration.
-char* WIFI_SSID = "DoESLiverpool";
-char* WIFI_KEY = "decafbad00";
+char* WIFI_SSID = "";
+char* WIFI_KEY = "";
 
 // Messaging configuration.
 char* MQTT_ID = "arduino-beaconbot";
