@@ -15,7 +15,6 @@ Dir.chdir(config['music_dir']) do
 
   # Find any new files and download them
   feed.css('item enclosure').each do |item|
-puts item.inspect
     filename = File.basename(item['url'])
   
     unless File.exist?(filename)
