@@ -8,5 +8,8 @@ This assumes you are running on a Raspberry Pi.
  * `sudo apt-get install ruby`
  * `sudo gem install simple-rss`
  * Configure the scripts by setting the relevant values in `config.yaml`
- * Set up cron to run `download_rss` at regular intervals (e.g. every 15 minutes)
- * Run the `play_radio` script
+ * Set up cron to run `download_rss` at regular intervals (e.g. every 20 minutes), run `crontab -e` and add:
+    */20 * * * * cd /home/pi/Applications/beaconbot/RadioDoESTower && ./download_rss
+ * Set the `play_radio` script to run at boot time, run `sudo vi /etc/rc.local` and add:
+    sudo -u pi screen -S radio -d -m /home/pi/Applications/beaconbot/RadioDoESTower/loop_play_radio
+    
