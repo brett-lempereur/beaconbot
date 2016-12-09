@@ -1,0 +1,736 @@
+[
+    {
+        "id": "4d1c82a3.988a5c",
+        "type": "tab",
+        "label": "Cheerbeacon"
+    },
+    {
+        "id": "a4121cb9.9a406",
+        "type": "comment",
+        "z": "4d1c82a3.988a5c",
+        "name": "Load colour definitions resource",
+        "info": "This path loads the colour definition file, which contains\nall of the HTML5 and CSS3 colours along with their RGB\ncolour codes into the global context.  At the end of this\nflow two variables are created in the global context:\n\n* `context.global.colour` is a map from a colour name to\n  a three-byte long encoding of the RGB value.\n* `context.global.colour_name` is a list of colour names\n  sorted in descending length order.\n\nThese variables are used when attempting to find colour\nnames in incoming messages.",
+        "x": 155,
+        "y": 72,
+        "wires": []
+    },
+    {
+        "id": "d1d300ed.452c4",
+        "type": "inject",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "topic": "",
+        "payload": "resources/messages.json",
+        "payloadType": "none",
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "x": 104,
+        "y": 288,
+        "wires": [
+            [
+                "8a517b20.7dc728"
+            ]
+        ]
+    },
+    {
+        "id": "55b23bac.b18804",
+        "type": "inject",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "topic": "",
+        "payload": "resources/response.json",
+        "payloadType": "none",
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "x": 104,
+        "y": 237,
+        "wires": [
+            [
+                "542ebecb.38e3d"
+            ]
+        ]
+    },
+    {
+        "id": "b9f64674.b2bab8",
+        "type": "json",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "x": 443,
+        "y": 237,
+        "wires": [
+            [
+                "33edf13b.8e84ee"
+            ]
+        ]
+    },
+    {
+        "id": "b7b0b669.f6ca58",
+        "type": "json",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "x": 445,
+        "y": 288,
+        "wires": [
+            [
+                "5fda9d68.b74874"
+            ]
+        ]
+    },
+    {
+        "id": "902fbcf3.b08dd",
+        "type": "comment",
+        "z": "4d1c82a3.988a5c",
+        "name": "Load response and message resources",
+        "info": "These two paths load the simple response and message\nresources into the global context.  At the end of these\npaths two variables are created in the global context:\n\n* `context.global.response` a list of all response templates.\n* `context.global.message` a list of all message templates.\n\nThese variables are used when deciding which messages to\npost either periodically or in response to an incoming\nmessage.",
+        "x": 179,
+        "y": 188,
+        "wires": []
+    },
+    {
+        "id": "33edf13b.8e84ee",
+        "type": "function",
+        "z": "4d1c82a3.988a5c",
+        "name": "store responses",
+        "func": "// Store the responses.\ncontext.global.response = msg.payload\n\n// Update the message payload for debugging.\nmsg.payload = \"Loaded \" + context.global.response.length + \" responses.\";\n\n// Forward the message for processing.\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 612,
+        "y": 237,
+        "wires": [
+            [
+                "cc304944.d4e5c8"
+            ]
+        ]
+    },
+    {
+        "id": "5fda9d68.b74874",
+        "type": "function",
+        "z": "4d1c82a3.988a5c",
+        "name": "store messages",
+        "func": "// Store the responses.\ncontext.global.message = msg.payload\n\n// Update the message payload for debugging.\nmsg.payload = \"Loaded \" + context.global.message.length + \" messages.\";\n\n// Forward the message for processing.\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 613,
+        "y": 288,
+        "wires": [
+            [
+                "cc304944.d4e5c8"
+            ]
+        ]
+    },
+    {
+        "id": "5d08df0f.de861",
+        "type": "json",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "x": 432,
+        "y": 120,
+        "wires": [
+            [
+                "c1651a7a.fa7298"
+            ]
+        ]
+    },
+    {
+        "id": "c1651a7a.fa7298",
+        "type": "function",
+        "z": "4d1c82a3.988a5c",
+        "name": "convert colours",
+        "func": "// Update the value of every colour in the dictionary.\nfor (var key in msg.payload) {\n    // Filter for only those keys that are not prototype properties.\n    if (msg.payload.hasOwnProperty(key)) {\n        msg.payload[key] = new Buffer(msg.payload[key]);\n    }\n}\n\n// Continue processing the message.\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 595,
+        "y": 120,
+        "wires": [
+            [
+                "323bf66c.64e7da"
+            ]
+        ]
+    },
+    {
+        "id": "323bf66c.64e7da",
+        "type": "function",
+        "z": "4d1c82a3.988a5c",
+        "name": "store names and colours",
+        "func": "// Store the colour dictionary in the global context.\ncontext.global.colour = msg.payload;\n\n// Store and sort the colour names in the global context.\ncontext.global.colour_name = Object.keys(context.global.colour);\ncontext.global.colour_name.sort(\n    function (p, q) {\n        p.length > q.length;\n    }    \n);\n\n// Update the message payload for debugging.\nvar count = context.global.colour_name.length;\nmsg.payload = \"Loaded \" + count + \" colour definitions from file.\";\n\n// Forward the message for processing.\nreturn msg;\n",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 812,
+        "y": 120,
+        "wires": [
+            [
+                "f9e300ca.a511b"
+            ]
+        ]
+    },
+    {
+        "id": "b05a3e89.abe4e",
+        "type": "inject",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "topic": "",
+        "payload": "resources/colours.json",
+        "payloadType": "none",
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "x": 103,
+        "y": 120,
+        "wires": [
+            [
+                "9d761fbd.1293d"
+            ]
+        ]
+    },
+    {
+        "id": "9d761fbd.1293d",
+        "type": "http request",
+        "z": "4d1c82a3.988a5c",
+        "name": "fetch colours file",
+        "method": "GET",
+        "ret": "txt",
+        "url": "http://rawgit.com/brett-lempereur/beaconbot/master/resources/colours.json",
+        "x": 268,
+        "y": 120,
+        "wires": [
+            [
+                "5d08df0f.de861"
+            ]
+        ]
+    },
+    {
+        "id": "542ebecb.38e3d",
+        "type": "http request",
+        "z": "4d1c82a3.988a5c",
+        "name": "fetch response file",
+        "method": "GET",
+        "ret": "txt",
+        "url": "http://rawgit.com/brett-lempereur/beaconbot/master/resources/response.json",
+        "x": 274,
+        "y": 237,
+        "wires": [
+            [
+                "b9f64674.b2bab8"
+            ]
+        ]
+    },
+    {
+        "id": "8a517b20.7dc728",
+        "type": "http request",
+        "z": "4d1c82a3.988a5c",
+        "name": "fetch message file",
+        "method": "GET",
+        "ret": "txt",
+        "url": "http://rawgit.com/brett-lempereur/beaconbot/master/resources/message.json",
+        "x": 272,
+        "y": 288,
+        "wires": [
+            [
+                "b7b0b669.f6ca58"
+            ]
+        ]
+    },
+    {
+        "id": "f9e300ca.a511b",
+        "type": "debug",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "active": true,
+        "console": "true",
+        "complete": "payload",
+        "x": 1020,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "cc304944.d4e5c8",
+        "type": "debug",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "active": true,
+        "console": "true",
+        "complete": "payload",
+        "x": 811,
+        "y": 258,
+        "wires": []
+    },
+    {
+        "id": "a9262266.eb7af",
+        "type": "comment",
+        "z": "4d1c82a3.988a5c",
+        "name": "Respond to mentions",
+        "info": "This path is responsible for responding to mentions on Twitter\nby:\n\n1. Attempting to find a colour name in the mention.\n2. Updating the colour of the beacon to the corresponding value.\n3. Taking a picture of the beacon in its new colour.\n4. Selecting a random response.\n5. Tweeting the picture in response to the mention.\n\nIf no colour name is found in the mention, no action will be\ntaken.",
+        "x": 379,
+        "y": 408,
+        "wires": []
+    },
+    {
+        "id": "db1cb1aa.2a265",
+        "type": "twitter in",
+        "z": "4d1c82a3.988a5c",
+        "twitter": "",
+        "tags": "@doestower",
+        "user": "false",
+        "name": "",
+        "topic": "tweets",
+        "x": 350,
+        "y": 546,
+        "wires": [
+            [
+                "6bfd607f.98ab7"
+            ]
+        ]
+    },
+    {
+        "id": "fb957d5.f42a88",
+        "type": "function",
+        "z": "4d1c82a3.988a5c",
+        "name": "find colour",
+        "func": "// Normalise the message.\nvar nm = msg.tweet.text.toLowerCase();\n\n// Begin by indicating that there is no colour.\nmsg.colour = null;\n\n// Try to find the first (i.e. most precise) matching colour in the global\n// colour name list.\nfor (var i in context.global.colour_name) {\n    var cn = context.global.colour_name[i];\n    if (nm.indexOf(cn) >= 0) {\n        msg.colour = context.global.colour[cn];\n        break;\n    }\n}\n\n// Return the message for further processing.\nreturn msg;\n",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 679,
+        "y": 515,
+        "wires": [
+            [
+                "bb9734ee.a7f968"
+            ]
+        ]
+    },
+    {
+        "id": "bb9734ee.a7f968",
+        "type": "switch",
+        "z": "4d1c82a3.988a5c",
+        "name": "only messages with a colour",
+        "property": "colour",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "nnull"
+            }
+        ],
+        "checkall": "true",
+        "outputs": 1,
+        "x": 885,
+        "y": 515,
+        "wires": [
+            [
+                "839f55fd.668488",
+                "6da51bca.877af4"
+            ]
+        ]
+    },
+    {
+        "id": "332a5e92.13e3a2",
+        "type": "mqtt out",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "topic": "beacon/colour",
+        "qos": "0",
+        "retain": "",
+        "broker": "8f51c03.8d3204",
+        "x": 1404,
+        "y": 536,
+        "wires": []
+    },
+    {
+        "id": "839f55fd.668488",
+        "type": "function",
+        "z": "4d1c82a3.988a5c",
+        "name": "set payload to colour",
+        "func": "// Store the colour as the message payload.\nmsg.payload = msg.colour;\n\n// Return the message for further processing.\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 1189,
+        "y": 536,
+        "wires": [
+            [
+                "332a5e92.13e3a2"
+            ]
+        ]
+    },
+    {
+        "id": "6da51bca.877af4",
+        "type": "delay",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "5",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "x": 1152,
+        "y": 491,
+        "wires": [
+            [
+                "4cec41f3.99e2a"
+            ]
+        ]
+    },
+    {
+        "id": "4cec41f3.99e2a",
+        "type": "function",
+        "z": "4d1c82a3.988a5c",
+        "name": "generate random response",
+        "func": "// Select a random response template from the global context.\nvar index = Math.floor(Math.random() * context.global.response.length);\nvar response = context.global.response[index];\n\n// Replace template parameters in the message.\nresponse = response.replace(\"$screen_name\", msg.tweet.user.screen_name);\n\n// Store the message as the payload.\nmsg.payload = response;\n\n// Return the message for further processing.\nreturn msg;\n",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 1362,
+        "y": 491,
+        "wires": [
+            [
+                "fa4ecadc.6ec628"
+            ]
+        ]
+    },
+    {
+        "id": "fa4ecadc.6ec628",
+        "type": "twitter out",
+        "z": "4d1c82a3.988a5c",
+        "twitter": "",
+        "name": "Tweet",
+        "x": 1560,
+        "y": 491,
+        "wires": []
+    },
+    {
+        "id": "6bfd607f.98ab7",
+        "type": "switch",
+        "z": "4d1c82a3.988a5c",
+        "name": "ignore ourself",
+        "property": "tweet.user.screen_name",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "neq",
+                "v": "\"doestower\"",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "outputs": 1,
+        "x": 517,
+        "y": 515,
+        "wires": [
+            [
+                "fb957d5.f42a88"
+            ]
+        ]
+    },
+    {
+        "id": "5ff0dfe2.ab578",
+        "type": "inject",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "topic": "",
+        "payload": "red",
+        "payloadType": "str",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "x": 702,
+        "y": 768,
+        "wires": [
+            [
+                "502b6dcc.640664"
+            ]
+        ]
+    },
+    {
+        "id": "104eb189.83149e",
+        "type": "mqtt in",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "topic": "beacon/colour",
+        "qos": "2",
+        "broker": "8f51c03.8d3204",
+        "x": 940,
+        "y": 887,
+        "wires": [
+            [
+                "a1bf401a.0fdc4"
+            ]
+        ]
+    },
+    {
+        "id": "a1bf401a.0fdc4",
+        "type": "debug",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "active": true,
+        "console": "false",
+        "complete": "payload",
+        "x": 1154,
+        "y": 975,
+        "wires": []
+    },
+    {
+        "id": "80b6705f.faaf4",
+        "type": "inject",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "topic": "",
+        "payload": "green",
+        "payloadType": "str",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "x": 699,
+        "y": 815,
+        "wires": [
+            [
+                "502b6dcc.640664"
+            ]
+        ]
+    },
+    {
+        "id": "7c1424be.6737dc",
+        "type": "inject",
+        "z": "4d1c82a3.988a5c",
+        "name": "",
+        "topic": "",
+        "payload": "blue",
+        "payloadType": "str",
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "x": 699,
+        "y": 861,
+        "wires": [
+            [
+                "502b6dcc.640664"
+            ]
+        ]
+    },
+    {
+        "id": "6d71ed79.8d0044",
+        "type": "twitter in",
+        "z": "4d1c82a3.988a5c",
+        "twitter": "",
+        "tags": "@doesliverpool",
+        "user": "false",
+        "name": "",
+        "topic": "tweets",
+        "x": 350,
+        "y": 479,
+        "wires": [
+            [
+                "6bfd607f.98ab7"
+            ]
+        ]
+    },
+    {
+        "id": "502b6dcc.640664",
+        "type": "function",
+        "z": "4d1c82a3.988a5c",
+        "name": "find colour",
+        "func": "// Normalise the message.\nvar nm = msg.payload.toLowerCase();\n\n// Begin by indicating that there is no colour.\nmsg.colour = null;\n\n// Try to find the first (i.e. most precise) matching colour in the global\n// colour name list.\nfor (var i in context.global.colour_name) {\n    var cn = context.global.colour_name[i];\n    if (nm.indexOf(cn) >= 0) {\n        msg.colour = context.global.colour[cn];\n        break;\n    }\n}\n\n// Return the message for further processing.\nreturn msg;\n",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 930,
+        "y": 630,
+        "wires": [
+            [
+                "839f55fd.668488"
+            ]
+        ]
+    },
+    {
+        "id": "a327333a.8c4bc",
+        "type": "http request",
+        "z": "4d1c82a3.988a5c",
+        "name": "cheerlights api",
+        "method": "GET",
+        "ret": "txt",
+        "url": "http://api.thingspeak.com/channels/1417/field/1/last.txt",
+        "tls": "",
+        "x": 302,
+        "y": 636,
+        "wires": [
+            [
+                "9f879c58.8a147"
+            ]
+        ]
+    },
+    {
+        "id": "8e38a787.e0ecf8",
+        "type": "inject",
+        "z": "4d1c82a3.988a5c",
+        "name": "30 seconds",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "30",
+        "crontab": "",
+        "once": true,
+        "x": 119,
+        "y": 636,
+        "wires": [
+            [
+                "a327333a.8c4bc"
+            ]
+        ]
+    },
+    {
+        "id": "4ab3b7bf.d9e1e8",
+        "type": "comment",
+        "z": "4d1c82a3.988a5c",
+        "name": "Check cheerlights api",
+        "info": "Pull the plain text field of the cheerlights api every 30 seconds.",
+        "x": 120,
+        "y": 570,
+        "wires": []
+    },
+    {
+        "id": "b4e371df.dd8b1",
+        "type": "comment",
+        "z": "4d1c82a3.988a5c",
+        "name": "inject colours",
+        "info": "",
+        "x": 703,
+        "y": 718,
+        "wires": []
+    },
+    {
+        "id": "9f879c58.8a147",
+        "type": "switch",
+        "z": "4d1c82a3.988a5c",
+        "name": "only if changed",
+        "property": "cheerlight",
+        "propertyType": "global",
+        "rules": [
+            {
+                "t": "neq",
+                "v": "payload",
+                "vt": "msg"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "outputs": 2,
+        "x": 489,
+        "y": 636,
+        "wires": [
+            [
+                "4b2bde6b.34405"
+            ],
+            [
+                "dba7c85f.4b5df8"
+            ]
+        ]
+    },
+    {
+        "id": "4b2bde6b.34405",
+        "type": "function",
+        "z": "4d1c82a3.988a5c",
+        "name": "record new colour",
+        "func": "context.global.cheerlight = msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 696,
+        "y": 630,
+        "wires": [
+            [
+                "502b6dcc.640664"
+            ]
+        ]
+    },
+    {
+        "id": "dba7c85f.4b5df8",
+        "type": "function",
+        "z": "4d1c82a3.988a5c",
+        "name": "no change",
+        "func": "msg.payload = \"no change: \" + context.global.cheerlight;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 701,
+        "y": 974,
+        "wires": [
+            [
+                "a1bf401a.0fdc4"
+            ]
+        ]
+    },
+    {
+        "id": "4afa9179.ce794",
+        "type": "comment",
+        "z": "4d1c82a3.988a5c",
+        "name": "report each mqtt message",
+        "info": "",
+        "x": 954,
+        "y": 837,
+        "wires": []
+    },
+    {
+        "id": "cfff0042.02834",
+        "type": "inject",
+        "z": "4d1c82a3.988a5c",
+        "name": "force resend",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "x": 111,
+        "y": 783,
+        "wires": [
+            [
+                "eb8d586f.232ad8"
+            ]
+        ]
+    },
+    {
+        "id": "eb8d586f.232ad8",
+        "type": "function",
+        "z": "4d1c82a3.988a5c",
+        "name": "cheerlight = \"\"",
+        "func": "context.global.cheerlight = \"fish\";\n//msg.payload = \"reset to: \" + context.global.cheerlight;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 293,
+        "y": 783,
+        "wires": [
+            [
+                "a327333a.8c4bc"
+            ]
+        ]
+    },
+    {
+        "id": "f44019ae.4b1128",
+        "type": "comment",
+        "z": "4d1c82a3.988a5c",
+        "name": "reset cheerlights colour",
+        "info": "",
+        "x": 117,
+        "y": 720,
+        "wires": []
+    },
+    {
+        "id": "8f51c03.8d3204",
+        "type": "mqtt-broker",
+        "z": "",
+        "broker": "m20.cloudmqtt.com",
+        "port": "21475",
+        "tls": "",
+        "clientid": "",
+        "usetls": true,
+        "compatmode": true,
+        "keepalive": "15",
+        "cleansession": true,
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": ""
+    }
+]
