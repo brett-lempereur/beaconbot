@@ -40,7 +40,7 @@ const uint8_t ANIM_COUNT = 7;
 Animation* ANIM_TYPES[] = {
     new Blink(16, CRGB::Black),
     new Blink(16, CRGB::White),
-    new Chase(CRGB::Black), 
+    new Chase(CRGB::Black),
     new Chase(CRGB::White),
     new RandomWipe(255, 255),
     new RandomSolidFade(255, 255),
@@ -57,6 +57,9 @@ CRGB brand_leds[BRAND_COUNT];
 // Animation controller.
 RandomAnimator brand_animator(ANIM_TYPES, ANIM_COUNT);
 
+// add a prototype for the on_colour function ahead of the PubSubClient initialiser
+void on_colour(char* topic, uint8_t* payload, unsigned int length);
+
 // Messaging status.
 WiFiClient mqtt_wifi;
 PubSubClient mqtt(MQTT_SERVER, MQTT_PORT, on_colour, mqtt_wifi);
@@ -69,14 +72,15 @@ void setup()
 
 #ifdef DEBUG
     // Initialise the serial port for debugging.
-    Serial.begin(9600);
+    Serial.begin(115200);
+    Serial.println(F("start does_tower"));
 #endif
 
     // Initialise the lighting strip.
     FastLED.addLeds<WS2812, BASE_PIN, GRB>(base_leds, BASE_COUNT);
     FastLED.addLeds<WS2812, BRAND_PIN_LEFT, GRB>(brand_leds, BRAND_COUNT);
     FastLED.addLeds<WS2812, BRAND_PIN_RIGHT, GRB>(brand_leds, BRAND_COUNT);
-    
+
     // Indicate that we're trying to connect to WiFi.
     fill_solid(base_leds, BASE_COUNT, CRGB::Red);
     fill_solid(brand_leds, BRAND_COUNT, CRGB::Red);
@@ -108,7 +112,7 @@ void setup()
     fill_solid(base_leds, BASE_COUNT, CRGB::Green);
     fill_solid(brand_leds, BRAND_COUNT, CRGB::Green);
     FastLED.show();
-    
+
     // Check connectivity.
 #ifdef DEBUG
     Serial.println("Checking connection: www.google.com:80");
@@ -153,7 +157,7 @@ void setup()
     fill_solid(brand_leds, BRAND_COUNT, CRGB::White);
     fill_solid(brand_leds_last, BRAND_COUNT, CRGB::White);
     FastLED.show();
-    
+
 #ifdef DEBUG
     // Debug messaging.
     Serial.println("Initialisation complete, waiting for messages.");
@@ -196,7 +200,7 @@ void loop()
 }
 
 /**
- * Called whenever an updated colour is received from the controlling 
+ * Called whenever an updated colour is received from the controlling
  * software.
  */
 void on_colour(char* topic, uint8_t* payload, unsigned int length)
@@ -231,4 +235,3 @@ void on_colour(char* topic, uint8_t* payload, unsigned int length)
     FastLED.show();
 
 }
-
