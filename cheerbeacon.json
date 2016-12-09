@@ -693,7 +693,7 @@
         "type": "function",
         "z": "4d1c82a3.988a5c",
         "name": "cheerlight = \"\"",
-        "func": "context.global.cheerlight = \"\";\nmsg.payload = \"reset to: \" + context.global.cheerlight;\nreturn msg;",
+        "func": "context.global.cheerlight = \"fish\";\n//msg.payload = \"reset to: \" + context.global.cheerlight;\nreturn msg;",
         "outputs": 1,
         "noerr": 0,
         "x": 293,
